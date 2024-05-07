@@ -3,35 +3,10 @@
  * Description:
  */
 
-#include <stdio.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#include <sys/time.h>
+#include "GBN.h"
 
 #define PORT 5555
 #define MAXMSG 512
-
-
-/*Transport protocol header*/
-typedef struct rtp_struct {
-    int ACK;
-    int SYN;
-    int SYN_ACK;
-    int FIN;
-    int FIN_ACK;
-    int id;
-    int seq;
-    int windowsize;
-    int crc;
-    char* data;
-} rtp;
 
 
 int makeSocket(unsigned short int port){
@@ -59,12 +34,6 @@ int makeSocket(unsigned short int port){
 }
 
 
-void threeWayHandshake(int sock){
-
-
-
-}
-
 
 int main(int argc, char *argv[]){
     int sock;
@@ -79,10 +48,13 @@ int main(int argc, char *argv[]){
 
     threeWayHandshake(sock);
 
+    /*Read all packets*/
     while(1){
 
     }
 
+    /*Close the socket */
 
 
+    return 0;
 }
