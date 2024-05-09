@@ -6,7 +6,6 @@
 #include "GBN.h"
 
 #define PORT 5555
-#define MAXMSG 512
 
 
 int makeSocket(unsigned short int port){
@@ -46,7 +45,7 @@ int main(int argc, char *argv[]){
 
     printf("\n[Waiting for connection...]\n");
 
-    threeWayHandshake(sock);
+    //threeWayHandshake(sock);
 
     /*Read all packets*/
     while(1){
