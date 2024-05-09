@@ -6,10 +6,6 @@
 #include "GBN.h"
 
 #define PORT 5555
-#define hostNameLength 50
-#define windowSize 1
-#define MAXMSG 1024
-
 
 
 /*Initiat a socket given a host name and a port*/
@@ -29,10 +25,6 @@ void initSocketAddress(struct sockaddr_in *name, char *hostName, unsigned short 
     /*Fill in the host name into the socketaddr_in struct*/
     name->sin_addr = *(struct in_addr *)hostInfo->h_addr;
 }
-
-
-
-
 
 
 int main(int argc, char *argv[]){
@@ -61,8 +53,8 @@ int main(int argc, char *argv[]){
     initSocketAddress(&serverName, hostName, PORT);
 
     /*Start a connection to the server*/
-    if(threeWayHandshake(sock, serverName) == -1){
-        perror("threeWayHandshake");
+    if(sender_connection(sock, (struct sockaddr*)&serverName) != 1){
+        perror("sender connection");
         exit(EXIT_FAILURE);
     }
 
