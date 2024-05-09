@@ -1,72 +1,100 @@
 #include "GBN.h"
 
-#define hostNameLength 50
-#define windowSize 1
-#define MAXMSG 1024
 
-
-
-
-int threeWayHandshake(int sock, struct sockaddr_in serverName){
-    struct timeval timeout;
+int sender_connection(int sockfd, const struct sockaddr *serverName){
     char buffer[MAXMSG];
+    fd_set activeFdSet;
     srand(time(NULL));
     int nOfBytes;
-    rtp packet;    
-    fd_set activeFdSet;
 
-    /*Timeout values*/
+    struct timeval timeout;
     timeout.tv_sec = 0;
     timeout.tv_usec = 100;
-    int seqNum = (rand() % 10000) + 10;
 
-
+    s_state = CLOSED;
     
-    packet.flags = SYN;
-    packet.seq = seqNum;
-    packet.windowsize = windowSize;
+    /* Initialize SYN_packet */
+    rtp *SYN_packet = malloc(sizeof(*SYN_packet));
+    SYN_packet->flags = SYN;    //SYN packet                     
+    SYN_packet->seq = (rand() % 10000) + 10;    //Chose a random seq_number between 10 & 9999
+    SYN_packet->windowsize = windowSize;
+    memset(SYN_packet->data, '\0', sizeof(SYN_packet));
+    SYN_packet->checksum = checksum(SYN_packet);
 
-    nOfBytes = sendto(sock, &packet, sizeof(rtp), 0, (struct sockaddr *)&serverName, sizeof(serverName));
-    if(nOfBytes < 0){
-        perror("theeWayHandshake - Could not send SYN packet\n");
-        exit(EXIT_FAILURE);
-    }
+    /* Initialize ACK_packet */
+    rtp *ACK_packet = malloc(sizeof(*ACK_packet));
+    ACK_packet->flags = ACK;
+    memset(ACK_packet->data, '\0', sizeof(ACK_packet->data));
+
 
     FD_Zero(&activeFdSet);
-    FD_SET(sock, &activeFdSet);
+    FD_SET(sockfd, &activeFdSet);
 
-    /*SYN_ACK Wait state*/
+
     while(1){
-        int result = select(sock + 1, &activeFdSet, NULL, NULL, &timeout);
+        switch(s_state){
+            case CLOSED:
 
-        if(result == -1){
-            perror("Select failed\n");
-            exit(EXIT_FAILURE);
-        }
-        else if(result == 0){
-            printf("threeWayHandshake - SYN packet loss");
-            nOfBytes = sendto(sock, &packet, sizeof(rtp), 0, (struct sockaddr *)&serverName, sizeof(serverName));
-            if(nOfBytes < 0){
-                perror("theeWayHandshake - Could not send SYN packet\n");
+                printf("Sensing SYN_packet\n");
+
+                nOfBytes = sendto(sockfd, &SYN_packet, sizeof(*SYN_packet), 0, serverName, sizeof(serverName));
+            
+                if(nOfBytes < 0){
+                perror("Sender connection - Could not send SYN packet\n");
                 exit(EXIT_FAILURE);
-            }            
-        }
-        else{
-            break;
+                }
+
+                s_state = WAIT_SYNACK;
+                break;
+            
+            case WAIT_SYNACK:
+                int result = select(sockfd + 1, &activeFdSet, NULL, NULL, &timeout);
+
+                if(result == -1){   //Select fails
+                    perror("WAIT_SYN select failed");
+                    exit(EXIT_FAILURE);
+
+                } else if(result == 0){ //If the a timeout occurs, packet loss
+                    printf("TIMEOUT: SYN packet loss");
+                    s_state = CLOSED;
+                    break;
+
+                } else{ //Recieves SYNACK
+                    printf("SYNACK received");
+                    s_state = RCVD_SYNACK;
+                }
+                break;
+
+            case RCVD_SYNACK:
+                nOfBytes = sendto(sockfd, &ACK_packet, sizeof(*ACK_packet), 0, serverName, sizeof(serverName));
+                
+                if(nOfBytes < 0){
+                perror("Sender connection - Could not send SYN packet\n");
+                exit(EXIT_FAILURE);
+                }
+
+                s_state = ESTABLISHED;
+                break;
+
+            case ESTABLISHED:
+                int result = select(sockfd + 1, &activeFdSet, NULL, NULL, &timeout);
+
+                if(result == -1){   //Select fails
+                    perror("ESTABLISHED select failed");
+                    exit(EXIT_FAILURE);
+
+                } else if(result == 0){ //Timeout occurs, no packet loss
+                    printf("Connection succeccfully established");
+                    return 1;
+
+                } else{ //Receives SYNACK again, ACK packet was lost
+                    printf("SYNACK received again");
+                    s_state = RCVD_SYNACK;
+                }
+
+                break;
         }
     }
-
-    /*Receive packet from server*/
-    nOfBytes = recvfrom(sock, buffer, sizeof(buffer), 0, (struct sockaddr *)&serverName, sizeof(serverName));
-
-    memcpy(&packet, buffer, sizeof(rtp));
-
-    /*Check if packet is ACK*/
-    if(packet.flags != SYN || packet.flags != ACK){
-
-    }
-
-
 }
 
 
@@ -75,26 +103,48 @@ int teardown(int sock, struct sockaddr_in serverName){
 }
 
 
-int validate_checksum(rtp *packet){
-    uint16_t received_checksum = packet->checksum;
-    packet->checksum = 0;
-    uint16_t calculated_checksum = checksum((uint16_t*)packet, sizeof(*packet) / sizeof(uint16_t));
 
-    if(received_checksum == calculated_checksum){
-        return 1;
+uint16_t checksum(rtp *packet){
+    /* Calculate the number of 16-bit words in the packet */
+    int nwords = (sizeof(packet->flags) + sizeof(packet->seq) + sizeof(packet->data))/sizeof(uint16_t);
+    
+    /* Create an array to hold the data for checksum calculation */
+    uint16_t buffer_array[nwords];
+
+    /* Combine seq and flags fields of the packet into the first element of the buffer_array */
+    buffer_array[0] = (uint16_t)packet->seq + ((uint16_t)packet->flags << 8);
+
+    /* Loop through each byte of the data field */
+    for(int byte_index = 1; byte_index <= sizeof(packet->data); byte_index++){
+
+        /* Calculate the index of the word where the byte will be stored */
+        int word_index = (byte_index + 1) / 2;
+
+        if(byte_index % 2 == 1){
+            /* If byte_index is odd, store the byte in the lower byte of the word */
+            buffer_array[word_index] = packet->data[byte_index - 1];
+        } else{
+            /* If byte_index is even, shift the previously stored byte to the higher byte
+             * of the word and add the new byte */
+            buffer_array[word_index] = buffer_array[word_index] << 8;
+            buffer_array[word_index] += packet->data[byte_index - 1]; 
+        }
     }
-    else{
-        printf("Incorrect checksum detected!. Recieved: %d, Calculated: %d\n", received_checksum, calculated_checksum);
-        return 0;
-    }
-}
 
-int checksum(uint16_t *buffer, int len){
-    uint32_t sum = 0;   /*Store 32 bit in sum*/
+    /* create a pointer to buffer_array and initialize a 32-bit sum*/
+    uint16_t *buffer = buffer_array;
+    uint32_t sum;
 
-    for(int i = 0; i < len; i++){
-        sum += *buffer;
+    /*Iterate through each 16-bit word in buffer_array and sum them up*/
+    for(sum = 0; nwords > 0; nwords--){
+        sum += *buffer++;
     }
 
-    return sum;
+    /* Reduce the sum to a 16-bit value by adding the carry from the high
+     * 16 bits to the low 16 bits */
+    sum = (sum >> 16) + (sum & 0xffff);
+
+    sum += (sum >>16);  /* Add any carry from the previous step */
+    return ~sum;    /* Return the one's complement of the sum */
+
 }
