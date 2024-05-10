@@ -35,25 +35,31 @@ int makeSocket(unsigned short int port){
 
 
 int main(int argc, char *argv[]){
-    int sock;
+    int sockfd;
     int clientSocket;
     struct sockaddr_in clientName;
-    socklen_t size;
+    socklen_t socklen;
 
-    /*Create a socket and set it up to accept connections*/
-    sock = makeSocket(PORT);
+    /* Create a socket and set it up to accept connections */
+    sockfd = makeSocket(PORT);
 
+    /* Listening */
     printf("\n[Waiting for connection...]\n");
 
-    //threeWayHandshake(sock);
+    socklen = sizeof(struct sockaddr_in);
+    int new_sockfd = receiver_connection(sockfd, (struct sockaddr*)&clientName, &socklen);
+    if(new_sockfd == -1){
+        perror("receiver_connection");
+        exit(EXIT_FAILURE);
+    }
 
-    /*Read all packets*/
+    /* Read all packets */
     while(1){
 
     }
 
-    /*Close the socket */
-
+    /* Close the socket */
+    
 
     return 0;
 }
