@@ -18,6 +18,10 @@
 #define windowSize 1
 #define MAXMSG 1024
 
+/* Protocal parameters */
+#define LOSS_PROB 1e-2      /* Packet loss probability */
+#define CORR_PROB 1e-3      /* Packet corrution probability */
+
 
 /* Packet flags */
 #define SYN 0                  
@@ -26,7 +30,6 @@
 #define ACK 3
 #define FIN 4
 #define FINACK 5
-
 
 int s_state;
 int r_state;
@@ -44,10 +47,10 @@ int r_state;
 #define ESTABLISHED 3
 
 /* Other states */
-#define WAIT_ACK 1
-#define WAIT_FIN 2
-#define WAIT_FINACK 3
-
+#define WAIT_FIN 10
+#define WAIT_FINACK 20
+#define RCVD_FINACK 30
+#define WAIT_TIME 40
 
 /* ransport protocol header */
 typedef struct rtp_struct {
@@ -61,9 +64,10 @@ typedef struct rtp_struct {
 
 
 int sender_connection(int sockfd, const struct sockaddr *serverName);
-int receiver_connection(int sockfd);
+int receiver_connection(int sockfd, const struct sockaddr *client, socklen_t *socklen);
 
-int teardown(int sock, struct sockaddr_in serverName);
+int sender_teardown(int sockfd, struct sockaddr_in serverName);
+int receiver_teardown(int sockfd);
 
 uint16_t checksum(rtp *packet);
 int validate_checksum(rtp *packet);
