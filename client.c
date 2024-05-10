@@ -64,7 +64,7 @@ int main(int argc, char *argv[]){
     }
 
     /*Close the socket*/
-    if (teardown(sock, serverName) == -1){
+    if (sender_teardown(sock, serverName) == -1){
         perror("teardown");
         exit(EXIT_FAILURE);
     }
