@@ -1,6 +1,6 @@
 /* File: server.c
  * Authors: Kim Svedberg, Zebastian Thorsén 
- * Description:
+ * Description: File containing the receiver code.
  */
 
 #include "GBN.h"
@@ -35,10 +35,9 @@ int makeSocket(unsigned short int port){
 
 
 int main(int argc, char *argv[]){
-    int sockfd;
-    int clientSocket;
+    int sockfd;                     /* Socket file descriptor of the receiver */              
+    socklen_t socklen;              /* Length of the socket structure sockaddr */
     struct sockaddr_in clientName;
-    socklen_t socklen;
 
     /* Create a socket and set it up to accept connections */
     sockfd = makeSocket(PORT);
@@ -59,7 +58,6 @@ int main(int argc, char *argv[]){
     }
 
     /* Close the socket */
-
 
     return 0;
 }
