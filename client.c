@@ -28,9 +28,12 @@ void initSocketAddress(struct sockaddr_in *name, char *hostName, unsigned short 
 
 
 int main(int argc, char *argv[]){
-    int sock;
+    int sockfd;                         /* Socket file descriptor of the sender */
+    socklen_t socklen;                  /* Length of the socket structure sockaddr */
     struct sockaddr_in serverName;
-    char hostName[hostNameLength];
+    char hostName[hostNameLength];      /* Name of the host/receiver */
+
+    socklen = sizeof(struct sockaddr);
 
     /*Check arguments*/
     if(argv[1] == NULL){
@@ -43,8 +46,8 @@ int main(int argc, char *argv[]){
     }
 
     /*Create the socket*/
-    sock = socket(PF_INET, SOCK_DGRAM, 0);
-    if(sock < 0){
+    sockfd = socket(PF_INET, SOCK_DGRAM, 0);
+    if(sockfd < 0){
         perror("Could not create a socket\n");
         exit(EXIT_FAILURE);
     }
@@ -53,7 +56,7 @@ int main(int argc, char *argv[]){
     initSocketAddress(&serverName, hostName, PORT);
 
     /*Start a connection to the server*/
-    if(sender_connection(sock, (struct sockaddr*)&serverName) != 1){
+    if(sender_connection(sockfd, (struct sockaddr*)&serverName, socklen) != 1){
         perror("sender connection");
         exit(EXIT_FAILURE);
     }
@@ -64,7 +67,7 @@ int main(int argc, char *argv[]){
     }
 
     /*Close the socket*/
-    if (sender_teardown(sock, serverName) == -1){
+    if (sender_teardown(sockfd, (struct sockaddr*)&serverName, socklen) == -1){
         perror("teardown");
         exit(EXIT_FAILURE);
     }
