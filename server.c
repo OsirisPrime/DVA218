@@ -59,7 +59,7 @@ int main(int argc, char *argv[]){
     }
 
     /* Close the socket */
-    
+
 
     return 0;
 }
