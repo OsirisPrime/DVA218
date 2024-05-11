@@ -1,6 +1,6 @@
 /* File: GBN.h
  * Authors: Kim Svedberg, Zebastian Thorsén 
- * Description:
+ * Description: File containing protocol varibles and states.
  */
 
 #ifndef gbn_h
@@ -50,7 +50,7 @@ enum states {
     RCVD_FINACK,
     WAIT_TIME,
     LISTENING,
-    SENT_SYNACK,
+    RCVD_SYN,
     WAIT_ACK,
     READ_DATA,
     DEFAULT,
@@ -67,9 +67,15 @@ typedef struct rtp_struct {
     char data[MAXMSG];
 } rtp;
 
+
 /* All function for the protocol */
 int sender_connection(int sockfd, const struct sockaddr *serverName, socklen_t socklen);
 int receiver_connection(int sockfd, const struct sockaddr *client, socklen_t *socklen);
+
+ssize_t sender_gbn(int sockfd, const void *buf, size_t len, int flags);
+ssize_t receiver_gbn(int sockfd, void *buf, size_t len, int flags);
+ssize_t maybe_sendto(int sockfd, const void *buf, size_t len, int flags,
+                     const struct sockaddr *to, socklen_t tolen);
 
 int sender_teardown(int sockfd, const struct sockaddr *serverName, socklen_t socklen);
 int receiver_teardown(int sockfd, const struct sockaddr *client, socklen_t socklen);
