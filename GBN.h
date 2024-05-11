@@ -1,3 +1,8 @@
+/* File: GBN.h
+ * Authors: Kim Svedberg, Zebastian Thorsén 
+ * Description:
+ */
+
 #ifndef gbn_h
 #define gbn_h
 
@@ -14,14 +19,12 @@
 #include <sys/time.h>
 
 
-#define hostNameLength 50
-#define windowSize 1
-#define MAXMSG 1024
-
 /* Protocal parameters */
+#define hostNameLength 50   /* The lenght of host name*/
+#define windowSize 1        /* Sliding window size */
+#define MAXMSG 1024         /* Maximun data to be sent once*/
 #define LOSS_PROB 1e-2      /* Packet loss probability */
 #define CORR_PROB 1e-3      /* Packet corrution probability */
-
 
 /* Packet flags */
 #define SYN 0                  
@@ -31,43 +34,45 @@
 #define FIN 4
 #define FINACK 5
 
-int s_state;
-int r_state;
+int s_state;            /* Sender state */
+int r_state;            /* Receiver state */
 
-/* Sender connection states */
-#define CLOSED 0
-#define WAIT_SYNACK 1
-#define RCVD_SYNACK 2
-#define ESTABLISHED 3
+/* All possible states */
+enum states {
+    CLOSED,
+    WAIT_SYNACK,
+    RCVD_SYNACK,
+    ESTABLISHED,
+    WAIT,
+    SEND_DATA,
+    PACKET_LOSS,
+    WAIT_FINACK,
+    RCVD_FINACK,
+    WAIT_TIME,
+    LISTENING,
+    SENT_SYNACK,
+    WAIT_ACK,
+    READ_DATA,
+    DEFAULT,
+    RCVD_FIN,
+};
 
-/* Reciever connection states */
-#define LISTENING 0
-#define SENT_SYNACK 1
-#define WAIT_ACK 2
-#define ESTABLISHED 3
-
-/* Other states */
-#define WAIT_FIN 10
-#define WAIT_FINACK 20
-#define RCVD_FINACK 30
-#define WAIT_TIME 40
-
-/* ransport protocol header */
+/* Transport protocol header */
 typedef struct rtp_struct {
     int flags;
     //int id; If there are more then one connections
     int seq;
     int windowsize;
     int checksum;
-    char* data;
+    char data[MAXMSG];
 } rtp;
 
-
-int sender_connection(int sockfd, const struct sockaddr *serverName);
+/* All function for the protocol */
+int sender_connection(int sockfd, const struct sockaddr *serverName, socklen_t socklen);
 int receiver_connection(int sockfd, const struct sockaddr *client, socklen_t *socklen);
 
-int sender_teardown(int sockfd, struct sockaddr_in serverName);
-int receiver_teardown(int sockfd);
+int sender_teardown(int sockfd, const struct sockaddr *serverName, socklen_t socklen);
+int receiver_teardown(int sockfd, const struct sockaddr *client, socklen_t socklen);
 
 uint16_t checksum(rtp *packet);
 int validate_checksum(rtp *packet);
