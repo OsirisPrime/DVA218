@@ -1,6 +1,6 @@
 /* File: client.c
  * Authors: Kim Svedberg, Zebastian Thorsén 
- * Description:
+ * Description: File containing the sender code.
  */
 
 #include "GBN.h"
@@ -71,7 +71,6 @@ int main(int argc, char *argv[]){
         perror("teardown");
         exit(EXIT_FAILURE);
     }
-
 
     return 0;
 }
