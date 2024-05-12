@@ -46,6 +46,7 @@ enum states {
     WAIT,
     SEND_DATA,
     PACKET_LOSS,
+    RCVD_ACK,
     WAIT_FINACK,
     RCVD_FINACK,
     WAIT_TIME,
@@ -66,6 +67,12 @@ typedef struct rtp_struct {
     int checksum;
     char data[MAXMSG];
 } rtp;
+
+/* State information (Maybe not needed)*/
+typedef struct states_t{
+    int seqnum;
+    int window_size;
+} state_t;
 
 
 /* All function for the protocol */
