@@ -29,7 +29,9 @@ void initSocketAddress(struct sockaddr_in *name, char *hostName, unsigned short 
 
 int main(int argc, char *argv[]){
     int sockfd;                         /* Socket file descriptor of the sender */
+    int numRead;
     socklen_t socklen;                  /* Length of the socket structure sockaddr */
+    char buf[MAXMSG];
     struct sockaddr_in serverName;
     char hostName[hostNameLength];      /* Name of the host/receiver */
 
@@ -63,7 +65,10 @@ int main(int argc, char *argv[]){
 
     /*Send all packet*/
     while(1){
-        
+        if(sender_gbn(sockfd, buf, numRead, 0) == -1){
+            perror("sender_gbn");
+            exit(EXIT_FAILURE);
+        }
     }
 
     /*Close the socket*/
