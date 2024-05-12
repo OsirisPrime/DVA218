@@ -36,6 +36,8 @@ int makeSocket(unsigned short int port){
 
 int main(int argc, char *argv[]){
     int sockfd;                     /* Socket file descriptor of the receiver */              
+    int numRead;                    /* Number of read bytes */
+    char buf[MAXMSG];
     socklen_t socklen;              /* Length of the socket structure sockaddr */
     struct sockaddr_in clientName;
 
@@ -54,10 +56,21 @@ int main(int argc, char *argv[]){
 
     /* Read all packets */
     while(1){
+        if((numRead = receiver_gbn(new_sockfd, buf, MAXMSG, 0)) == -1){
+            perror("receiver_gbn");
+            exit(EXIT_FAILURE);
+
+        } else if(numRead == 0){
+            break;
+        }
 
     }
 
     /* Close the socket */
+    if(receiver_teardown(new_sockfd, (struct sockaddr*)&clientName, socklen) == -1){
+        perror("receiver_teardown");
+        exit(EXIT_FAILURE);
+    }
 
     return 0;
 }
