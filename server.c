@@ -1,37 +1,11 @@
 /* File: server.c
  * Authors: Kim Svedberg, Zebastian Thorsén 
- * Description:
+ * Description: File containing the receiver code.
  */
 
-#include <stdio.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#include <sys/time.h>
+#include "GBN.h"
 
 #define PORT 5555
-#define MAXMSG 512
-
-
-/*Transport protocol header*/
-typedef struct rtp_struct {
-    int ACK;
-    int SYN;
-    int SYN_ACK;
-    int FIN;
-    int FIN_ACK;
-    int id;
-    int seq;
-    int windowsize;
-    int crc;
-    char* data;
-} rtp;
 
 
 int makeSocket(unsigned short int port){
@@ -59,30 +33,44 @@ int makeSocket(unsigned short int port){
 }
 
 
-void threeWayHandshake(int sock){
-
-
-
-}
-
 
 int main(int argc, char *argv[]){
-    int sock;
-    int clientSocket;
+    int sockfd;                     /* Socket file descriptor of the receiver */              
+    int numRead;                    /* Number of read bytes */
+    char buf[MAXMSG];
+    socklen_t socklen;              /* Length of the socket structure sockaddr */
     struct sockaddr_in clientName;
-    socklen_t size;
 
-    /*Create a socket and set it up to accept connections*/
-    sock = makeSocket(PORT);
+    /* Create a socket and set it up to accept connections */
+    sockfd = makeSocket(PORT);
 
+    /* Listening */
     printf("\n[Waiting for connection...]\n");
 
-    threeWayHandshake(sock);
+    socklen = sizeof(struct sockaddr_in);
+    int new_sockfd = receiver_connection(sockfd, (struct sockaddr*)&clientName, &socklen);
+    if(new_sockfd == -1){
+        perror("receiver_connection");
+        exit(EXIT_FAILURE);
+    }
 
+    /* Read all packets */
     while(1){
+        if((numRead = receiver_gbn(new_sockfd, buf, MAXMSG, 0)) == -1){
+            perror("receiver_gbn");
+            exit(EXIT_FAILURE);
+
+        } else if(numRead == 0){
+            break;
+        }
 
     }
 
+    /* Close the socket */
+    if(receiver_teardown(new_sockfd, (struct sockaddr*)&clientName, socklen) == -1){
+        perror("receiver_teardown");
+        exit(EXIT_FAILURE);
+    }
 
-
+    return 0;
 }
