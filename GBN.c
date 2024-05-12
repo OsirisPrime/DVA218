@@ -272,7 +272,7 @@ receiver_connection(int sockfd, const struct sockaddr *client, socklen_t *sockle
                 free(SYNACK_packet);
                 free(ACK_packet);
 
-                return 1; /* Retrun that the connecton was made*/
+                return sockfd; /* Retrun that the connecton was made*/
                 break;
 
             default:
@@ -585,10 +585,113 @@ int receiver_teardown(int sockfd, const struct sockaddr *client, socklen_t sockl
 
 ssize_t sender_gbn(int sockfd, const void *buf, size_t len, int flags){
 
+    /* Initialize DATA packet */
+    rtp *DATA_packet = malloc(sizeof(*DATA_packet));
+    DATA_packet->flags = DATA;
+    memset(DATA_packet->data, '\0', sizeof(DATA_packet->data));
+
+    /* Initialize ACK packet */
+    rtp *ACK_packet =malloc(sizeof(*ACK_packet));
+    memset(ACK_packet->data, '\0', sizeof(ACK_packet->data));
+
+    struct sockaddr client_sockaddr;
+    socklen_t client_socklen = sizeof(client_sockaddr);
+
+    int num_UNACK_packet = 0;
+
+    while(len > 0){
+        switch(s_state){
+            case ESTABLISHED:
+                break;
+
+            case SEND_DATA:
+                break;
+
+            case PACKET_LOSS:
+                break;
+
+            case RCVD_ACK:
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    /* Free allocated memory */
+    free(DATA_packet);
+    free(ACK_packet);
+    return 1;
+
 }
 
 ssize_t receiver_gbn(int sockfd, void *buf, size_t len, int flags){
 
+    int expSeq;
+
+    /* Initialize DATA packet */
+    rtp *DATA_packet = malloc(sizeof(*DATA_packet));
+    memset(DATA_packet->data, '\0', sizeof(DATA_packet->data));
+
+    /* Initilaze ACK packet */
+    rtp *ACK_packet =malloc(sizeof(*ACK_packet));
+    ACK_packet->flags = ACK;
+    memset(ACK_packet->data, '\0', sizeof(ACK_packet->data));
+
+    struct sockaddr client_addr;
+    socklen_t client_len = sizeof(client_addr);
+    
+    while(r_state == ESTABLISHED){
+        if(recvfrom(sockfd, DATA_packet, sizeof(*DATA_packet), 0, &client_addr, &client_len) != -1){
+            printf("Received a packet!\n");
+
+            /* If the packet is a FIN */
+            if(DATA_packet->flags == FIN && DATA_packet->checksum == checksum(DATA_packet)){
+                printf("Received a valid FIN packet!\n");
+                return 0;
+
+            } else{ /* If the packet is not FIN*/
+                if(DATA_packet->flags == DATA && DATA_packet->checksum == checksum(DATA_packet)){
+                    printf("Received a valid DATA packet!\n");
+
+                    /* If the data packet has expected sequence number */
+                    if(DATA_packet->seq == expSeq){
+                        printf("Data packet has expected sequence number!\n");
+                        
+                        /* Finilize ACK packet */
+                        ACK_packet->seq = DATA_packet->seq + 1;
+                        ACK_packet->checksum = checksum(ACK_packet);
+
+                    } else{ /* wrong sequence number, resend old ACK*/
+                        printf("DATA packet has wrong sequence number!\n");
+
+                        /* Finialize ACK packet */
+                        ACK_packet->seq = expSeq;
+                        ACK_packet->checksum = checksum(ACK_packet);
+                    }
+
+                    /* Regardless of sequencxe number, send ACK */
+                    if(maybe_sendto(sockfd, ACK_packet, sizeof(*ACK_packet), 0, &client_addr, &client_len) == -1){
+                        perror("maybe_sendto");
+                        exit(EXIT_FAILURE);
+
+                    } else{
+                        printf("Successfully sent ACK!\n");
+                    }
+                }
+            }
+
+        } else{
+            r_state = CLOSED;
+            perror("Can't read from socket\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    /* free allocated memory */
+    free(DATA_packet);
+    free(ACK_packet);
+    return 0;
 }
 
 /* Checksum calculator */
