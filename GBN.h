@@ -25,6 +25,8 @@
 #define MAXMSG 1024         /* Maximun data to be sent once*/
 #define LOSS_PROB 1e-2      /* Packet loss probability */
 #define CORR_PROB 1e-3      /* Packet corrution probability */
+#define MAX_SEQ_NUM 100     /* The maximum random sequence number */
+#define MIN_SEQ_NUM 5       /* The minimum random sequence number */
 
 /* Packet flags */
 #define SYN 0                  
@@ -60,16 +62,17 @@ enum states {
 
 /* Transport protocol header */
 typedef struct rtp_struct {
-    int flags;
+    uint8_t flags;
     //int id; If there are more then one connections
-    int seq;
+    uint8_t seq;
     int windowsize;
-    int checksum;
-    char data[MAXMSG];
+    uint16_t checksum;
+    uint8_t  data[MAXMSG];
 } rtp;
 
 /* State information (Maybe not needed)*/
 typedef struct states_t{
+    int state;
     int seqnum;
     int window_size;
 } state_t;
@@ -88,6 +91,5 @@ int sender_teardown(int sockfd, const struct sockaddr *serverName, socklen_t soc
 int receiver_teardown(int sockfd, const struct sockaddr *client, socklen_t socklen);
 
 uint16_t checksum(rtp *packet);
-int validate_checksum(rtp *packet);
 
 #endif
