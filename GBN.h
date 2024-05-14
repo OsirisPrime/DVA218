@@ -20,13 +20,13 @@
 
 
 /* Protocal parameters */
-#define hostNameLength 50   /* The lenght of host name*/
-#define windowSize 1        /* Sliding window size */
-#define MAXMSG 1024         /* Maximun data to be sent once*/
-#define LOSS_PROB 1e-2      /* Packet loss probability */
-#define CORR_PROB 1e-3      /* Packet corrution probability */
-#define MAX_SEQ_NUM 100     /* The maximum random sequence number */
-#define MIN_SEQ_NUM 5       /* The minimum random sequence number */
+#define hostNameLength 50       /* The lenght of host name*/
+#define windowSize 1            /* Sliding window size */
+#define MAXMSG 1024             /* Maximun data to be sent once*/
+#define LOSS_PROB 0             /* Packet loss probability */
+#define CORR_PROB 0             /* Packet corrution probability */
+#define MAX_SEQ 100             /* The maximum random sequence number */
+#define MIN_SEQ 5               /* The minimum random sequence number */
 
 /* Packet flags */
 #define SYN 0                  
@@ -36,8 +36,8 @@
 #define FIN 4
 #define FINACK 5
 
-int s_state;            /* Sender state */
-int r_state;            /* Receiver state */
+int s_state;                    /* Sender state */
+int r_state;                    /* Receiver state */
 
 /* All possible states */
 enum states {
@@ -70,7 +70,7 @@ typedef struct rtp_struct {
     uint8_t  data[MAXMSG];
 } rtp;
 
-/* State information (Maybe not needed)*/
+/* State information */
 typedef struct states_t{
     int state;
     int seqnum;
