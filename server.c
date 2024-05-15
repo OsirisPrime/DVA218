@@ -11,7 +11,7 @@
 state_t r;
 
 
-receiver_connection(int sockfd, const struct sockaddr *client, socklen_t *socklen){
+int receiver_connection(int sockfd, const struct sockaddr *client, socklen_t *socklen){
     
     struct timeval timeout;                                 /* Timeout struct */
     fd_set activeFdSet;                                     /* File descriptor */
@@ -69,8 +69,6 @@ receiver_connection(int sockfd, const struct sockaddr *client, socklen_t *sockle
                         r.seqnum = SYN_packet->seq;
                         r.window_size = SYN_packet->windowsize;
 
-                        /* Finilize SYNACK packet */
-
                         /* Switch to next state */
                         r.state = RCVD_SYN;
 
@@ -89,11 +87,11 @@ receiver_connection(int sockfd, const struct sockaddr *client, socklen_t *sockle
             /* Send a SYNACK after a vaild SYN packet*/
             case RCVD_SYN:
                 
-                SYNACK_packet->flags = SYNACK;                          /* Set flag to SYNACK */
-                memset(SYNACK_packet->data, '\0', sizeof(SYNACK_packet->data)); /* Make data field empty */   
-                SYNACK_packet->seq = r.seqnum;                          /* Set seqnum */
-                SYNACK_packet->windowsize = SYN_packet->windowsize;     /* Set windowsize */
-                SYNACK_packet->checksum = checksum(SYNACK_packet);      /* Calculate checksum*/
+                SYNACK_packet->flags = SYNACK;                              /* Set flag to SYNACK */
+                SYNACK_packet->seq = r.seqnum;                              /* Set seqnum */
+                SYNACK_packet->windowsize = r.window_size;                  /* Set windowsize */
+                memset(SYNACK_packet->data, '\0', sizeof(SYNACK_packet->data)); /* Make data field empty */                
+                SYNACK_packet->checksum = checksum(SYNACK_packet);          /* Calculate checksum*/
 
                 /* Send SYNACK packet */
                 if(maybe_sendto(sockfd, SYNACK_packet, sizeof(*SYNACK_packet), 0, client, *socklen) != -1){
@@ -112,8 +110,8 @@ receiver_connection(int sockfd, const struct sockaddr *client, socklen_t *sockle
             case WAIT_ACK:
 
                 /* Timeout var. */
-                timeout.tv_sec = 0;                     /* 0s */
-                timeout.tv_usec = 500;                  /* 500ms */
+                timeout.tv_sec = 1;                     /* 1s */
+                timeout.tv_usec = 0;                    /* 0ms */
 
                 result = select(sockfd + 1, &activeFdSet, NULL, NULL, &timeout);
 
@@ -140,7 +138,7 @@ receiver_connection(int sockfd, const struct sockaddr *client, socklen_t *sockle
                             printf("Packet info: Type = %d\tSeq = %d\n\n", ACK_packet->flags, ACK_packet->seq);
 
                             /* Update receiver info */
-                            r.seqnum = ACK_packet->seq;
+                            r.seqnum++;
 
                             /* Switch to next state */
                             r.state = ESTABLISHED;
@@ -177,6 +175,7 @@ receiver_connection(int sockfd, const struct sockaddr *client, socklen_t *sockle
     }
     return -1;
 }
+
 
 int receiver_teardown(int sockfd, const struct sockaddr *client, socklen_t socklen){
     
@@ -233,12 +232,6 @@ int receiver_teardown(int sockfd, const struct sockaddr *client, socklen_t sockl
                         /* Update receiver info */
                         r.seqnum++;
 
-                        /* Finilize FINACK packet */
-                        FINACK_packet->flags = FINACK;                      /*Set flag to FINACK */
-                        FINACK_packet->seq = r.seqnum;                      /* Set seqnum */                   
-                        memset(FINACK_packet->data, '\0', sizeof(FINACK_packet));   /* Make data field empty */
-                        FINACK_packet->checksum = checksum(FINACK_packet);  /* Calculate checksum */
-
                         /* Switch to next state */
                         r.state = RCVD_FIN;
 
@@ -260,6 +253,12 @@ int receiver_teardown(int sockfd, const struct sockaddr *client, socklen_t sockl
             /* Received FIN, send FINACK */
             case RCVD_FIN:
 
+                /* Finilize FINACK packet */
+                FINACK_packet->flags = FINACK;                          /*Set flag to FINACK */
+                FINACK_packet->seq = r.seqnum;                          /* Set seqnum */                   
+                memset(FINACK_packet->data, '\0', sizeof(FINACK_packet));   /* Make data field empty */
+                FINACK_packet->checksum = checksum(FINACK_packet);      /* Calculate checksum */
+
                 /* Send FINACK */
                 if(maybe_sendto(sockfd, FINACK_packet, sizeof(*FINACK_packet), 0, client, socklen) != -1){
                     printf("FINACK sent: Type = %d\tSeq = %d\n\n", FINACK_packet->flags, FINACK_packet->seq);
@@ -278,7 +277,7 @@ int receiver_teardown(int sockfd, const struct sockaddr *client, socklen_t sockl
             case WAIT_TIME:
 
                 /* Timeout var. */
-                timeout.tv_sec = 5;                 /* 5s */
+                timeout.tv_sec = 1;                 /* 1s */
                 timeout.tv_usec = 0;                /* 0ms */
 
                 result = select(sockfd + 1, &activeFdSet, NULL, NULL, &timeout);
@@ -394,6 +393,7 @@ uint16_t checksum(rtp *packet){
 
 /* ERROR generator */
 ssize_t maybe_sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen){
+    srand(time(NULL));
     char *buffer = malloc(len);
     memcpy(buffer, buf, len);
 
@@ -414,6 +414,7 @@ ssize_t maybe_sendto(int sockfd, const void *buf, size_t len, int flags, const s
                 c |= 0x01;
             }
             buffer[index] = c;
+            printf("Sending corrupt packet\n");
         }
 
         /* Sending the packet */
@@ -427,6 +428,7 @@ ssize_t maybe_sendto(int sockfd, const void *buf, size_t len, int flags, const s
         return result;
 
     } else{ /* Packet lost */
+        printf("Sending lost packet\n");
         return(len);
     }
 }
