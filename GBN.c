@@ -63,9 +63,9 @@ int sender_connection(int sockfd, const struct sockaddr *serverName, socklen_t s
                 SYN_packet->seq = s.seqnum;                             /* Set start seq to the random seq*/    
                 SYN_packet->checksum = checksum(SYN_packet);            /* Calculate checksum */
             
-                /* Sen SYN packet */
+                /* Send SYN packet */
                 if(maybe_sendto(sockfd, SYN_packet, sizeof(*SYN_packet), 0, serverName, socklen) != -1){
-                    printf("SYN sent\n");
+                    printf("SYN sent: Type = %d\tSeq = %d\tWindowsize = %d\n\n", SYN_packet->flags, SYN_packet->seq, SYN_packet->windowsize);
 
                     /* Successfully sent SYN, switch to next state */
                     s.state = WAIT_SYNACK;
@@ -84,6 +84,7 @@ int sender_connection(int sockfd, const struct sockaddr *serverName, socklen_t s
                 timeout.tv_sec = 1;                 /* 1s */
                 timeout.tv_usec = 0;                /* 0ms*/
 
+                /* Look if a packet has arrived */
                 result = select(sockfd + 1, &activeFdSet, NULL, NULL, &timeout);
                 
                 /* Select fails */
@@ -103,27 +104,29 @@ int sender_connection(int sockfd, const struct sockaddr *serverName, socklen_t s
                     if(recvfrom(sockfd, SYNACK_packet, sizeof(*SYNACK_packet), 0, &from, &from_len) != -1){
                         printf("New packet arrived!\n");
 
-                        /* Packet is what we expected */
+                        /* Packet is valid */
                         if(SYNACK_packet->flags == SYNACK && SYNACK_packet->seq == s.seqnum && SYNACK_packet->checksum == checksum(SYNACK_packet)){
                             printf("Valid SYNACK!\n");
-                            printf("Packet info - Type: %d\tSeq: %d\n", SYNACK_packet->flags, SYNACK_packet->seq);
+                            printf("Packet info: Type = %d\tSeq = %d\n\n", SYNACK_packet->flags, SYNACK_packet->seq);
 
                             /* Update sender info */
                             s.seqnum = SYNACK_packet->seq + 1;
                             s.window_size = SYNACK_packet->windowsize;
 
                             /* Finilize ACK packet */
-                            ACK_packet->flags = ACK;                                /* Set flag to ACK */
+                            ACK_packet->flags = ACK;                                    /* Set flag to ACK */
+                            ACK_packet->seq = s.seqnum;                                 /* Set seqnum */                      
                             memset(ACK_packet->data, '\0', sizeof(ACK_packet->data));   /* Make empty data field */
-                            ACK_packet->seq = s.seqnum;
-                            ACK_packet->checksum = checksum(ACK_packet);
+                            ACK_packet->checksum = checksum(ACK_packet);                /* Calculate checksum */
 
                             /* Switch to next state */
                             s.state = RCVD_SYNACK;
 
-                        /* Packet is not what we expected */    
+                        /* Packet is invalid */    
                         } else{
                             printf("Invalid SYNACK packet. Retransmitting SYN\n");
+
+                            /* Switch to previous state */
                             s.state = CLOSED;
                         }
 
@@ -140,7 +143,7 @@ int sender_connection(int sockfd, const struct sockaddr *serverName, socklen_t s
 
                 /* Send ACK packet */
                 if(maybe_sendto(sockfd, ACK_packet, sizeof(*ACK_packet), 0, serverName, socklen) != -1){
-                    printf("ACK sent\n");
+                    printf("ACK sent: Type = %d\tSeq = %d\n\n", ACK_packet->flags, ACK_packet->seq);
 
                     /* Switch to next state */
                     s.state = ESTABLISHED;
@@ -167,7 +170,7 @@ int sender_connection(int sockfd, const struct sockaddr *serverName, socklen_t s
 
                 /* Timeout occurs, no packet loss */
                 } else if(result == 0){
-                    printf("TIMEOUT occured! Connection established!\n\n");
+                    printf("TIMEOUT occured! Connection established!\n\n\n\n");
 
                     /* Free all allocated memory */
                     free(SYN_packet);
@@ -242,7 +245,7 @@ receiver_connection(int sockfd, const struct sockaddr *client, socklen_t *sockle
                     /* Packet is valid */
                     if(SYN_packet->flags == SYN && SYN_packet->checksum == checksum(SYN_packet)){
                         printf("Valid SYN!\n");
-                        printf("Packet info - Type %d\t Seq: %d\tWindowsize: %d\n", SYN_packet->flags, SYN_packet->seq, SYN_packet->windowsize);
+                        printf("Packet info: Type = %d\tSeq = %d\tWindowsize = %d\n\n", SYN_packet->flags, SYN_packet->seq, SYN_packet->windowsize);
 
                         /* Update receiver info */
                         r.seqnum = SYN_packet->seq;
@@ -270,13 +273,13 @@ receiver_connection(int sockfd, const struct sockaddr *client, socklen_t *sockle
                 
                 SYNACK_packet->flags = SYNACK;                          /* Set flag to SYNACK */
                 memset(SYNACK_packet->data, '\0', sizeof(SYNACK_packet->data)); /* Make data field empty */   
-                SYNACK_packet->seq = r.seqnum;
-                SYNACK_packet->windowsize = SYN_packet->windowsize;
-                SYNACK_packet->checksum = checksum(SYNACK_packet);
+                SYNACK_packet->seq = r.seqnum;                          /* Set seqnum */
+                SYNACK_packet->windowsize = SYN_packet->windowsize;     /* Set windowsize */
+                SYNACK_packet->checksum = checksum(SYNACK_packet);      /* Calculate checksum*/
 
                 /* Send SYNACK packet */
                 if(maybe_sendto(sockfd, SYNACK_packet, sizeof(*SYNACK_packet), 0, client, *socklen) != -1){
-                    printf("SYNACK sent\n");
+                    printf("SYNACK sent: Type = %d\tSeq = %d\n\n", SYNACK_packet->flags, SYNACK_packet->seq);
 
                     /* Successfully sent SYNACK, switch to next state */
                     r.state = WAIT_ACK;
@@ -291,8 +294,8 @@ receiver_connection(int sockfd, const struct sockaddr *client, socklen_t *sockle
             case WAIT_ACK:
 
                 /* Timeout var. */
-                timeout.tv_sec = 0;                 /* 0s */
-                timeout.tv_usec = 200;                /* 200ms */
+                timeout.tv_sec = 0;                     /* 0s */
+                timeout.tv_usec = 500;                  /* 500ms */
 
                 result = select(sockfd + 1, &activeFdSet, NULL, NULL, &timeout);
 
@@ -316,7 +319,7 @@ receiver_connection(int sockfd, const struct sockaddr *client, socklen_t *sockle
                         /* Packet is valid */
                         if(ACK_packet->flags == ACK && ACK_packet->seq == r.seqnum + 1 && ACK_packet->checksum == checksum(ACK_packet)){
                             printf("Valid ACK!\n");
-                            printf("Packet info - Type: %d\tSeq: %d\n", ACK_packet->flags, ACK_packet->seq);
+                            printf("Packet info: Type = %d\tSeq = %d\n\n", ACK_packet->flags, ACK_packet->seq);
 
                             /* Update receiver info */
                             r.seqnum = ACK_packet->seq;
@@ -341,13 +344,13 @@ receiver_connection(int sockfd, const struct sockaddr *client, socklen_t *sockle
                 break;
 
             case ESTABLISHED:
-                printf("Connection established!\n\n");
+                printf("Connection established!\n\n\n\n");
 
                 /* Free allocated memory */
                 free(SYN_packet);
                 free(SYNACK_packet);
                 free(ACK_packet);
-                return sockfd;              /* Retrun socket */
+                return sockfd;              /* Return socket */
                 break;
 
             default:
@@ -359,93 +362,124 @@ receiver_connection(int sockfd, const struct sockaddr *client, socklen_t *sockle
 
 
 int sender_teardown(int sockfd, const struct sockaddr *serverName, socklen_t socklen){
-    struct sockaddr_in from;
-    socklen_t fromlen = sizeof(from);
-    fd_set activeFdSet;
-    int nOfBytes;
-    int result;
 
-    /* Timeout */
-    struct timeval timeout;
-    timeout.tv_sec = 5;
-    timeout.tv_usec = 0;
+    struct timeval timeout;                                 /* Timeout struct */
+    fd_set activeFdSet;                                     /* File descriptor */
+    int result = 0;                                         /* Select result */
+
+    struct sockaddr_in from;                                /* Socket adress */
+    socklen_t fromlen = sizeof(from);                       /* Socket length */
+
 
     /* Initilize FIN packet */
-    rtp *FIN_packet = malloc(sizeof(*FIN_packet));
-    FIN_packet->flags = FIN;
-    memset(FIN_packet->data, '\0', sizeof(FIN_packet->data));
-    FIN_packet->checksum = checksum(FIN_packet);
+    rtp *FIN_packet = malloc(sizeof(*FIN_packet));          /* Alloc memory for FIN packet */
+    if(FIN_packet == NULL) {                                /* Check if allocating memory failed */
+        perror("malloc");
+        exit(EXIT_FAILURE);
+    }
+
 
     /* Initilize FINACK packet */
-    rtp *FINACK_packet = malloc(sizeof(*FINACK_packet));
-    memset(FINACK_packet->data, '\0', sizeof(FINACK_packet));
+    rtp *FINACK_packet = malloc(sizeof(*FINACK_packet));    /* Alloc memory for FINACK packet */        
+    if(FINACK_packet == NULL) {                             /* Check if allocating memory failed */
+        perror("malloc");
+        exit(EXIT_FAILURE);
+    }
+    memset(FINACK_packet->data, '\0', sizeof(FINACK_packet->data));
+
 
     /* Initilize ACK packet */
-    rtp *ACK_packet = malloc(sizeof(*ACK_packet));
-    ACK_packet->flags = ACK;
-    memset(ACK_packet->data, '\0', sizeof(ACK_packet));
+    rtp *ACK_packet = malloc(sizeof(*ACK_packet));          /* Alloc memory for ACK packet */
+    if(ACK_packet == NULL) {                                /* Check if allocating memory failed */
+        perror("malloc");
+        exit(EXIT_FAILURE);
+    }
 
-    FD_ZERO(&activeFdSet);
-    FD_SET(sockfd, &activeFdSet);
+    s.seqnum++;
+
+    FD_ZERO(&activeFdSet);                                  /* Clear fd set */
+    FD_SET(sockfd, &activeFdSet);                           /* Add fd to set */
 
     /* State machine */
     while(1){
-        switch (s_state){
+        switch (s.state){
 
-            /* Start state. The connection is established, send FIN */
+            /* Connection established. Send FIN */
             case ESTABLISHED:
-                printf("Sending FIN packet\n");
-                nOfBytes = sendto(sockfd, FIN_packet, sizeof(*FIN_packet), 0, serverName, socklen);
-                
-                /* Failed to send FIN_packet to receiver */
-                if(nOfBytes < 0){
-                    perror("Send FIN packet fail\n");
+
+                FIN_packet->flags = FIN;                        /* Set flag to FIN */
+                FIN_packet->seq = s.seqnum;                     /* Set seqnum */
+                memset(FIN_packet->data, '\0', sizeof(FIN_packet->data));   /* Make empty data field */
+                FIN_packet->checksum = checksum(FIN_packet);    /* Calculate checksum */
+
+                /* Send FIN packet */
+                if(maybe_sendto(sockfd, FIN_packet, sizeof(*FIN_packet), 0, serverName, socklen) != -1){
+                    printf("FIN sent: Type = %d\tSeq = %d\n\n", FIN_packet->flags, FIN_packet->seq);
+
+                    /* Successfully sent FIN_packet, switch to next state */
+                    s.state = WAIT_FINACK;
+
+                /* Failed to send FIN */    
+                } else{
+                    perror("Send FIN");
                     exit(EXIT_FAILURE);
                 }
-
-                /* Successfully sent FIN_packet, switch to next state */
-                s_state = WAIT_FINACK;
                 break;
 
-            /* Wait for an ACK (FINACK) for the FIN*/
+            /* Wait for a FINACK for the FIN*/
             case WAIT_FINACK:
+
+                /* Timeout var. */
+                timeout.tv_sec = 1;                         /* 1s */
+                timeout.tv_usec = 0;                        /* 0ms */
+
                 /* Look if a packet has arrived */
                 result = select(sockfd + 1, &activeFdSet, NULL, NULL, &timeout);
                 
-                if(result == -1){   /* Select failed */
+                /* Select failed */                
+                if(result == -1){   
                     perror("select failed");
                     exit(EXIT_FAILURE);
 
-                } else if(result == 0){ /* Timeout occurs, packet was lost */
+                /* Timeout occurs */
+                } else if(result == 0){ 
                     printf("TIMEOUT - FIN packet loss\n");
-                    s_state = ESTABLISHED;
+                    s.state = ESTABLISHED;
 
-                } else{ /* Receives a packet */
-                    /* Can read from socket */
+                /* Packet received within time frame */
+                } else{
+
+                    /* Read from socket */
                     if(recvfrom(sockfd, FINACK_packet, sizeof(*FINACK_packet), 0, &from, &fromlen) != -1){
                         printf("New packet arrived!\n");
 
-                        /* Correct packet type and checksum */
-                        if(FINACK_packet->flags == FINACK && FINACK_packet->checksum == checksum(FINACK_packet)){
+                        /* Packet is valid */
+                        if(FINACK_packet->flags == FINACK && FINACK_packet->seq == s.seqnum && FINACK_packet->checksum == checksum(FINACK_packet)){
+                            printf("Valid FINACK!\n");
+                            printf("Packet info: Type = %d\tSeq = %d\n\n", FINACK_packet->flags, FINACK_packet->seq);                            
                             
-                            printf("Valid FINACK packet!\n");
-                            printf("Packet info - Type: %d\tSeq: %d\n", FINACK_packet->flags, FINACK_packet->seq);                            
-                            
-                            /* Finalize the ACK_packet */
-                            ACK_packet->seq = FINACK_packet->seq + 1;
-                            ACK_packet->checksum = checksum(ACK_packet);
+                            /* Update sender info */
+                            s.seqnum++;
+
+                            /* Finalize the ACK packet */
+                            ACK_packet->flags = ACK;                                    /* Set flag to ACK */
+                            ACK_packet->seq = s.seqnum;                                 /* Set seqnum */
+                            memset(ACK_packet->data, '\0', sizeof(ACK_packet->data));   /* Make empty data field */
+                            ACK_packet->checksum = checksum(ACK_packet);                /* Calculate checksum */
 
                             /* Switch to next state */
-                            s_state = RCVD_FINACK;
+                            s.state = RCVD_FINACK;
 
-                        } else{ /* Invalid packet type or checksum */
-                            printf("Invalid FINACK packet\n");
-                            printf("Retransmitting FIN packet\n");
+                        /* Packet is invalid */
+                        } else{
+                            printf("Invalid FINACK. Retransmitting FIN\n");
+
                             /* Switch to previous state */
-                            s_state = ESTABLISHED;
+                            s.state = ESTABLISHED;
                         }
-
-                    } else{ /* Can't read from socket */
+                    
+                    /* Can't read from socket */
+                    } else{ 
                         perror("Can't read socket");
                         exit(EXIT_FAILURE);
                     }
@@ -453,78 +487,59 @@ int sender_teardown(int sockfd, const struct sockaddr *serverName, socklen_t soc
                 break;
 
             case RCVD_FINACK:
-                result = sendto(sockfd, ACK_packet, sizeof(*ACK_packet), 0, serverName, socklen);
-                
-                /* Failed to send ACK */
-                if(result < 0){
-                    perror("Send ACK-packet failed");
-                    exit(EXIT_FAILURE);
-                }
 
-                /* Sent ACK, switch to next state */
-                printf("ACK sent!\n");
-                s_state = WAIT_TIME;
+                /* Send ACK packet */
+                if(maybe_sendto(sockfd, ACK_packet, sizeof(*ACK_packet), 0, serverName, socklen) != -1){
+                    printf("ACK sent: Type = %d\tSeq = %d\n\n", ACK_packet->flags, ACK_packet->seq);
+
+                    /* Switch to next state */
+                    s.state = WAIT_TIME;  
+
+                /* Failed to send ACK*/                  
+                } else{
+                    perror("Send ACK");
+                    exit(EXIT_FAILURE);                    
+                }
                 break;
 
             case WAIT_TIME:
+
+                /* Timeout var. */
+                timeout.tv_sec = 1;                 /* 1s */
+                timeout.tv_usec = 0;                /* 0ms */
+
                 /* Look if a packet has arrived */
                 result = select(sockfd + 1, &activeFdSet, NULL, NULL, &timeout);
                 
-                if(result == -1){   /* Select failed */
+                /* Select failed */                
+                if(result == -1){   
                     perror("select failed");
                     exit(EXIT_FAILURE);
-
-                } else if(result == 0){ /* Timeout occurs, packet arrived */
-                    printf("TIMEOUT occurred\n");
+                
+                /* Timeout occurs, packet arrived */
+                } else if(result == 0){ 
+                    printf("TIMEOUT occurred! ");
 
                     /* Switch to next state */
-                    s_state = CLOSED;
-                    break;
-
-                } else{ /* Receives a new packet, ACK was lost */
+                    s.state = CLOSED;
+                
+                /* Receives a new packet, ACK was lost */
+                } else{ 
                     printf("Packet arrived again!\n");
 
-                    if(recvfrom(sockfd, FINACK_packet, sizeof(*FINACK_packet), 0, &from, &fromlen) != -1){
-                        printf("New packet arrived!\n");
-
-                        /* Correct packet type and checksum */
-                        if(FINACK_packet->flags == FINACK && FINACK_packet->checksum == checksum(FINACK_packet)){
-                            
-                            printf("Valid FINACK arrived!\n");
-                            printf("Packet info - Type: %d\tSeq: %d\n", FINACK_packet->flags, FINACK_packet->seq);                            
-                            
-                            /* Finalize ACK_packet */
-                            ACK_packet->seq = FINACK_packet->seq + 1;
-                            ACK_packet->checksum = checksum(ACK_packet);
-
-                            /* Switch to previous state */
-                            s_state = RCVD_FINACK;
-
-                        } else{ /* Invalid packet type or checksum */
-                            printf("Invalid FINACK packet\n");
-                            printf("Retransmitting FIN\n");
-
-                            /* Switch to begining state */
-                            s_state = ESTABLISHED;
-                        }
-
-                    } else{ /* Can't read from socket */
-                        perror("Can't read socket");
-                        exit(EXIT_FAILURE);
-                    }
+                    /* Switch to previous state */
+                    s.state = WAIT_FINACK;
                 }
                 break;
 
             /* Timeout occurred, close connection */
             case CLOSED:
-                
                 printf("Connection successfully closed!\n");
 
                 /* Free allocated memory */
                 free(FIN_packet);
                 free(FINACK_packet);
                 free(ACK_packet);
-                
                 return 1;   /* Return that connection was closed */
                 break;
 
@@ -536,61 +551,78 @@ int sender_teardown(int sockfd, const struct sockaddr *serverName, socklen_t soc
 
 
 int receiver_teardown(int sockfd, const struct sockaddr *client, socklen_t socklen){
-    fd_set activeFdSet;
-    int nOfBytes;
-    int result;
+    
+    struct timeval timeout;                                 /* Timeout struct */
+    fd_set activeFdSet;                                     /* File descriptor */
+    int result = 0;                                         /* Select result */
 
-    r_state = ESTABLISHED;
-
-    /* Timeout */
-    struct timeval timeout;
-    timeout.tv_sec = 5;
-    timeout.tv_usec = 0;
 
     /* Initilize FIN packet */
-    rtp *FIN_packet = malloc(sizeof(*FIN_packet));
-    memset(FIN_packet->data, '\0', sizeof(FIN_packet->data));
+    rtp *FIN_packet = malloc(sizeof(*FIN_packet));          /* Alloc memory for FIN packet */      
+    if(FIN_packet == NULL) {                                /* Check if allocation failed */
+        perror("malloc");
+        exit(EXIT_FAILURE);
+    }    
+    memset(FIN_packet->data, '\0', sizeof(FIN_packet->data));   /* Make data field empty */
   
+
     /* Initilize FINACK packet */
-    rtp *FINACK_packet = malloc(sizeof(*FINACK_packet));
-    FINACK_packet->flags = FINACK;
-    memset(FINACK_packet->data, '\0', sizeof(FINACK_packet));
+    rtp *FINACK_packet = malloc(sizeof(*FINACK_packet));    /* Alloc memory from FINACK packet */
+    if(FINACK_packet == NULL) {                                /* Check if allocation failed */
+        perror("malloc");
+        exit(EXIT_FAILURE);
+    } 
+
 
     /* Initilize ACK packet */
-    rtp *ACK_packet = malloc(sizeof(*ACK_packet));
+    rtp *ACK_packet = malloc(sizeof(*ACK_packet));          /* Alloc memory for ACK packet */
+    if(ACK_packet == NULL) {                                /* Check if allocation failed */
+        perror("malloc");
+        exit(EXIT_FAILURE);
+    } 
     memset(ACK_packet->data, '\0', sizeof(ACK_packet));
 
-    FD_ZERO(&activeFdSet);
-    FD_SET(sockfd, &activeFdSet);
 
+    FD_ZERO(&activeFdSet);                                  /* Clear fd set */
+    FD_SET(sockfd, &activeFdSet);                           /* Add fd to set */
+
+    /* State machine */
     while(1){
-        switch(r_state){
+        switch(r.state){
             
             /* FIN received */
             case ESTABLISHED:
-                if(recvfrom(sockfd, FIN_packet, sizeof(*FIN_packet), 0, client, &socklen) != -1){
-                    
+
+                /* Read from socket */
+                if(recvfrom(sockfd, FIN_packet, sizeof(*FIN_packet), 0, client, &socklen) != -1){   
                     printf("New packet arrived!\n");
 
-                    /* Check if packet is FIN and have a valid checksum */
-                    if(FIN_packet->flags == FIN && FIN_packet->checksum == checksum(FIN_packet)){
-                        printf("Valid FIN packet!\n");
-                        printf("Packet info - Type: %d\tseq: %d\n", FIN_packet->flags, FIN_packet->seq);
+                    /* Packet is valid  */
+                    if(FIN_packet->flags == FIN && FIN_packet->seq == r.seqnum + 1 && FIN_packet->checksum == checksum(FIN_packet)){
+                        printf("Valid FIN!\n");
+                        printf("Packet info: Type = %d\tSeq = %d\n\n", FIN_packet->flags, FIN_packet->seq);
+                        
+                        /* Update receiver info */
+                        r.seqnum++;
 
                         /* Finilize FINACK packet */
-                        FINACK_packet->seq = FIN_packet->seq + 1;
-                        FINACK_packet->checksum = checksum(FINACK_packet);
+                        FINACK_packet->flags = FINACK;                      /*Set flag to FINACK */
+                        FINACK_packet->seq = r.seqnum;                      /* Set seqnum */                   
+                        memset(FINACK_packet->data, '\0', sizeof(FINACK_packet));   /* Make data field empty */
+                        FINACK_packet->checksum = checksum(FINACK_packet);  /* Calculate checksum */
 
                         /* Switch to next state */
-                        r_state = RCVD_FIN;
+                        r.state = RCVD_FIN;
 
+                    /* Packet is invalid */
                     } else{
                         printf("Invalid FIN packet!\n");
 
                         /* Stay in current state */
-                        r_state = ESTABLISHED;
+                        r.state = ESTABLISHED;
                     }
 
+                /* Failed to read from socket */
                 } else{
                     perror("Can't read from socket");
                     exit(EXIT_FAILURE);
@@ -599,55 +631,69 @@ int receiver_teardown(int sockfd, const struct sockaddr *client, socklen_t sockl
 
             /* Received FIN, send FINACK */
             case RCVD_FIN:
-                nOfBytes = sendto(sockfd, FINACK_packet, sizeof(*FINACK_packet), 0, client, socklen);
+
+                /* Send FINACK */
+                if(maybe_sendto(sockfd, FINACK_packet, sizeof(*FINACK_packet), 0, client, socklen) != -1){
+                    printf("FINACK sent: Type = %d\tSeq = %d\n\n", FINACK_packet->flags, FINACK_packet->seq);
+
+                    /* Switch to next state */
+                    r.state = WAIT_TIME;
                 
                 /* Failed to send FINACK */
-                if(nOfBytes < 0){
-                    perror("Send FINACK failed");
-                    exit(EXIT_FAILURE);
-                } 
-
-                printf("FINACK sent!\n");
-
-                /* Switch to next state */
-                r_state = WAIT_TIME;
+                } else {
+                    perror("Send FINACK");
+                    exit(EXIT_FAILURE);                    
+                }
                 break;
 
             /* Sent FINACK, waiting if another packet arrives */
             case WAIT_TIME:
 
-                timeout.tv_sec = 5;
-                timeout.tv_usec = 0;
+                /* Timeout var. */
+                timeout.tv_sec = 5;                 /* 5s */
+                timeout.tv_usec = 0;                /* 0ms */
 
                 result = select(sockfd + 1, &activeFdSet, NULL, NULL, &timeout);
 
+                /* Select fails */
                 if(result == -1){
                     perror("Select failed");
                     exit(EXIT_FAILURE);
-
-                } else if(result == 0){ /* Timeout occurs, FINACK was lost */
+                
+                /* Timeout occurs, FINACK was lost */
+                } else if(result == 0){ 
                     printf("TIMEOUT occurred\n");
 
                     /* Retransmit FINACK, switch to previous state */
-                    r_state = RCVD_FIN;
+                    r.state = RCVD_FIN;
+
+                /* Packet arrived within time frame */    
                 } else{
+
+                    /* Read from socket */
                     if(recvfrom(sockfd, ACK_packet, sizeof(*ACK_packet), 0, client, &socklen) != -1){
                         printf("New packet arrived!\n");
 
-                        /* valid ACK */
-                        if(ACK_packet->flags == ACK && ACK_packet->checksum == checksum(ACK_packet)){
-                            printf("Valid ACK packet!\n");
-                            printf("Packet info - Type: %d\tseq: %d\n", ACK_packet->flags, ACK_packet->seq);
+                        /* packet is valid */
+                        if(ACK_packet->flags == ACK && ACK_packet->seq == r.seqnum + 1 && ACK_packet->checksum == checksum(ACK_packet)){
+                            printf("Valid ACK!\n");
+                            printf("Packet info: Type = %d\tSeq = %d\n\n", ACK_packet->flags, ACK_packet->seq);
+
+                            /* Update receiver info */
+                            r.seqnum++;
 
                             /* Switch to next state */
-                            r_state = CLOSED;
+                            r.state = CLOSED;
 
+                        /* Packet is invalid */
                         } else{
                             printf("Invalid ACK packet!\n");
                             
                             /* Switch to previous state */
-                            r_state = RCVD_FIN;
+                            r.state = RCVD_FIN;
                         }
+
+                    /* Failed to read from socket */
                     } else{
                         perror("Can't read from socket");
                         exit(EXIT_FAILURE);
@@ -657,15 +703,13 @@ int receiver_teardown(int sockfd, const struct sockaddr *client, socklen_t sockl
 
             /* Received ACK, close connection */
             case CLOSED:
-
                 printf("Connection successfully closed!\n");
 
                 /* Free allocated memory */
                 free(FIN_packet);
                 free(FINACK_packet);
                 free(ACK_packet);
-
-                return 1; /* Return that connection was closed */
+                return 1;               /* Return that connection was closed */
                 break;
             
             default:
@@ -673,6 +717,7 @@ int receiver_teardown(int sockfd, const struct sockaddr *client, socklen_t sockl
         }
     }
 }
+
 
 ssize_t sender_gbn(int sockfd, const void *buf, size_t len, int flags){
 
