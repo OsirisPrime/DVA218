@@ -54,7 +54,7 @@ int receiver_connect(int sockfd, const struct sockaddr *client, socklen_t *sockl
     }
     
     server.state = WAIT_OPEN_ACK;
-    alarm(TIMEOUT + 2);     /* Start a timer */
+    alarm(TIMEOUT);     /* Start a timer */
 
     while(1){
         /* Read from socket */  
@@ -296,6 +296,7 @@ ssize_t maybe_sendto(int sockfd, const void *buf, size_t len, int flags, const s
                 c |= 0x01;
             }
             buffer[index] = c;
+            printf("Simulated corrupt packet \n");
         }
 
         /* Sending the packet */
@@ -309,6 +310,7 @@ ssize_t maybe_sendto(int sockfd, const void *buf, size_t len, int flags, const s
         return result;
 
     } else{ /* Packet lost */
+        printf("Simulated lost packet \n");
         return(len);
     }
 }
