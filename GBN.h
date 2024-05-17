@@ -31,8 +31,9 @@ Description     : Header file for RT-protocol on-top of UDP
 /*----- Protocal parameters -----*/
 #define PORT 5555                   /* Socket number */
 #define hostNameLength 50           /* The lenght of host name*/
-#define windowSize 1                /* Sliding window size */
-#define MAXMSG 1024                 /* Maximun data to be sent once*/
+#define windowSize 3                /* Sliding window size */
+#define MAXMSG 255                  /* Maximun data to be sent once*/
+#define packetToSend 10             /* The number of packet to send + the window size */
 #define LOSS_PROB 0                 /* Packet loss probability */
 #define CORR_PROB 0                 /* Packet corrution probability */
 #define MAX_SEQ 100                 /* The maximum random sequence number */
