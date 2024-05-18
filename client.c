@@ -50,7 +50,7 @@ int sender_connect(int sockfd, const struct sockaddr *serverName, socklen_t sock
                 printf("Valid SYNACK!\n");
                 printf("Packet info: Type = %d\tSeq = %d\tWindowsize = %d\n\n", SYNACK_packet.flags, SYNACK_packet.seq, SYNACK_packet.winSize);
                 client.seqnum++;                        /* Increase the sequence number */
-                break;
+                break;                      
 
             /* If the SYNACK that arrived is invalid */
             } else{
@@ -81,7 +81,6 @@ int sender_connect(int sockfd, const struct sockaddr *serverName, socklen_t sock
     fcntl(sockfd, F_SETFL, O_NONBLOCK);                 /* Make the socket non-blocking */
     client.state = WAIT_OPEN;                           /* Change client state */
     alarm(TIMEOUT + 2);                                 /* Start a timer */
-
 
     /* Continue to listen for new packet (if the ACK was lost)*/
     while(client.state != ESTABLISHED){
@@ -127,7 +126,7 @@ int sender_connect(int sockfd, const struct sockaddr *serverName, socklen_t sock
 /* DATA sending thread, sends out max windowsize amount of DATA packet each time  */
 void *sendthread(void *arg){
     alarm(0);                                       /* Stop timer */
-    client.state = SEND_DATA;                       /* Change client state */
+    client.state = SEND_DATA;                       /* Change state */
     rtp DATA_packet;                                /* Defining DATA packet */
     nextSeq = 0;                                    /* Next sequence number to be sent */
     base = 0;                                       /* Base of sliding window*/              
@@ -251,16 +250,17 @@ void *recvthread(void *arg){
 }
 
 
+/* Teardown function. Sends FIN, rcvs FINACK and sends ACK */
 int sender_teardown(int sockfd, const struct sockaddr *serverName, socklen_t socklen){
-    rtp FIN_packet, FINACK_packet, ACK_packet;
+    rtp FIN_packet, FINACK_packet, ACK_packet;              /* Defining the packets */
     struct sockaddr from;                                   /* Adress from receiver */           
     socklen_t from_len = sizeof(from);                      /* socket length from receiver */ 
 
-    FIN_packet = packetBuild(FIN_packet, FIN);
+    FIN_packet = packetBuild(FIN_packet, FIN);              /* Build FIN packet */
 
+    /* Send FIN packet to server */
     if(maybe_sendto(sockfd, &FIN_packet, sizeof(FIN_packet), 0, serverName, socklen) != -1){
         printf("FIN sent: Type = %d\tSeq = %d\n\n", FIN_packet.flags, FIN_packet.seq);
-        client.state = WAIT_FINACK;
 
     /* Failed to send FIN */
     } else{
@@ -268,21 +268,24 @@ int sender_teardown(int sockfd, const struct sockaddr *serverName, socklen_t soc
         exit(EXIT_FAILURE);
     }
 
-    client.state = WAIT_FINACK;
-    alarm(TIMEOUT);     /* Start a timer */
+    client.state = WAIT_FINACK;     /* Change state to wait_finack */
+    alarm(TIMEOUT);                 /* Start a timer */
 
     while(1){
+
         /* Read from socket */  
         if(recvfrom(sockfd, &FINACK_packet, sizeof(FINACK_packet), 0, &from, &from_len) != -1){
             printf("New packet arrived!\n");
 
+            /* If arrived FINACK is valid */
             if(FINACK_packet.flags == FINACK && FINACK_packet.seq == client.seqnum && verify_checksum(&FINACK_packet) == 1){
-                alarm(0);       /* Stop the timer */
+                alarm(0);           /* Stop the timer */
                 printf("Valid FINACK!\n");
                 printf("Packet info: Type = %d\tSeq = %d\n\n", FINACK_packet.flags, FINACK_packet.seq);
-                client.seqnum++;
+                client.seqnum++;    /* Increase the sequence number */
                 break;
 
+            /* Else arrived FINACK is invalid */
             } else{
                 printf("Invalid FINACK!\n\n");
             }
@@ -294,8 +297,9 @@ int sender_teardown(int sockfd, const struct sockaddr *serverName, socklen_t soc
         }
     }
 
-    ACK_packet = packetBuild(ACK_packet, ACK);
+    ACK_packet = packetBuild(ACK_packet, ACK);  /* Build ACK packet */
 
+    /* Send ACK packet to server */
     if(maybe_sendto(sockfd, &ACK_packet, sizeof(ACK_packet), 0, serverName, socklen) != -1){
         printf("ACK sent: Type = %d\tSeq = %d\n\n", ACK_packet.flags, ACK_packet.seq);
 
@@ -305,8 +309,8 @@ int sender_teardown(int sockfd, const struct sockaddr *serverName, socklen_t soc
         exit(EXIT_FAILURE);
     }
 
-    client.state = WAIT_CLOSE;
-    alarm(TIMEOUT + 2);
+    client.state = WAIT_CLOSE;              /* Change state */
+    alarm(TIMEOUT + 2);                     /* Start timer */
 
     while(client.state != CLOSED){
         
@@ -314,6 +318,7 @@ int sender_teardown(int sockfd, const struct sockaddr *serverName, socklen_t soc
         if(recvfrom(sockfd, &FINACK_packet, sizeof(FINACK_packet), 0, &from, &from_len) != -1){  
             printf("New packet arrived again! Resend ACK\n");
             
+            /*Send ACK to server */
             if(maybe_sendto(sockfd, &ACK_packet, sizeof(ACK_packet), 0, serverName, socklen) != -1){
                 printf("ACK sent: Type = %d\tSeq = %d\n\n", ACK_packet.flags, ACK_packet.seq);
                 alarm(TIMEOUT);
@@ -339,16 +344,17 @@ int sender_teardown(int sockfd, const struct sockaddr *serverName, socklen_t soc
 }
 
 
-
+/* Timeout handler */
 void timeout_handler(int signum){
-    rtp re_packet;
+    rtp re_packet;              /* Define packet to resend */
 
 
     /* TIMEOUT: SYNACK doesn't arrived in time frame */
     if(client.state == WAIT_SYNACK){
         printf("TIMEOUT: Packet lost or corrupt. Resending SYN\n");
-        re_packet = packetBuild(re_packet, SYN);
+        re_packet = packetBuild(re_packet, SYN);    /* Build SYN packet */
 
+        /* Send SYN to server */
         if(maybe_sendto(client.sockfd, &re_packet, sizeof(re_packet), 0, client.DestName, client.socklen) != -1){
             printf("SYN sent: Type = %d\tSeq = %d\n\n", re_packet.flags, re_packet.seq);
 
@@ -363,17 +369,18 @@ void timeout_handler(int signum){
     /* TIMEOUT: Doesn't receiver a new packet in time fram */
     } else if(client.state == WAIT_OPEN){
         printf("TIMEOUT: Connection successfully established!\n\n\n");
-        client.state = ESTABLISHED;
-        client.seqnum++;
+        client.state = ESTABLISHED;                 /* Change state */
     
 
     /* TIMEOUT: Doesn't receive ACK on sent DATA in time frame */
     } else if(client.state == SEND_DATA){
         printf("TIMEOUT: Seq = %d\n", base);
-        re_packet = packetBuild(re_packet, DATA);
+        re_packet = packetBuild(re_packet, DATA);   /* Build DATA packet */
 
         for(int i = base; i < nextSeq; i++){
             printf("Resending Seq = %d\n", re_packet.seq);
+
+            /* Send DATA to server */
             if(maybe_sendto(client.sockfd, &re_packet, sizeof(re_packet), 0, client.DestName, client.socklen) != -1){
             printf("DATA sent: Type = %d\tSeq = %d\t\tData = %s\n\n", re_packet.flags, re_packet.seq, re_packet.data);
 
@@ -384,10 +391,10 @@ void timeout_handler(int signum){
             } 
 
             if(base == re_packet.seq){
-                alarm(TIMEOUT);
+                alarm(TIMEOUT);         /* Start timer again*/
             }
-            re_packet.seq++;
-            re_packet.checksum = 0;
+            re_packet.seq++;            /* Next packet */
+            re_packet.checksum = 0;     /* Calculate the checksum */
             re_packet.checksum = checksum(&re_packet);
         }
 
@@ -395,8 +402,9 @@ void timeout_handler(int signum){
     /* TIMEOUT: Doesn't receive FINACK in time frame */
     } else if(client.state == WAIT_FINACK){
         printf("TIMEOUT: Packet lost or corrupt. Resending FIN\n");
-        re_packet = packetBuild(re_packet, FIN);
+        re_packet = packetBuild(re_packet, FIN);    /* Build FIN packet */
 
+        /* Send FIN to server */
         if(maybe_sendto(client.sockfd, &re_packet, sizeof(re_packet), 0, client.DestName, client.socklen) != -1){
             printf("FIN sent: Type = %d\tSeq = %d\n\n", re_packet.flags, re_packet.seq);
 
@@ -405,15 +413,15 @@ void timeout_handler(int signum){
             perror("Send FIN");
             exit(EXIT_FAILURE);
         }   
-        alarm(TIMEOUT);
+        alarm(TIMEOUT);                 /* Start timer again*/
 
 
     /* TIMEOUT: Dosen't receive new packet in time frame */
     } else if(client.state == WAIT_CLOSE){
         printf("TIMEOUT: Connection successfully closed!\n\n\n");
-        client.state = CLOSED;
-        client.seqnum++;
+        client.state = CLOSED;          /* Change state */
 
+        /* Close the socket */
         if(close(client.sockfd) < 0){
             perror("Failed to close socket");
         }
@@ -475,15 +483,6 @@ rtp packetBuild(rtp packet, int type){
 }
 
 
-/* Get a random sequence number between 5 and 100 */
-int get_randNum(){
-    int num;
-    srand(time(NULL));
-    num = (rand() % (MAX_SEQ - MIN_SEQ + 1)) + MIN_SEQ;
-    return num;
-}
-
-
 /* Calculating the checksum of the packet */
 unsigned short checksum(const rtp *packet) {
     const unsigned short *ptr = (const unsigned short *)packet; /* Buffer packet */
@@ -539,8 +538,8 @@ int verify_checksum(const rtp *packet) {
 
 /* ERROR generator */
 ssize_t maybe_sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen){
-    char *buffer = malloc(len);     /* Create temp buffer */
-    memcpy(buffer, buf, len);       /* Copy message to temp buffer */
+    char *buffer = malloc(len);             /* Create temp buffer */
+    memcpy(buffer, buf, len);               /* Copy message to temp buffer */
 
     /* Packet not lost */
     if(rand() > LOSS_PROB * RAND_MAX){
@@ -573,12 +572,12 @@ ssize_t maybe_sendto(int sockfd, const void *buf, size_t len, int flags, const s
 
         /* Free buffer and return the bytes sent */
         free(buffer);
-        return result;
+        return result;                      /* Return number of bytes sent */     
     
     /* Packet lost */
     } else{ 
         printf("Simulated lost packet \n");
-        return(len);
+        return(len);                        /* Return fake number of bytes sent */
     }
 }
 
@@ -603,12 +602,12 @@ void initSocketAddress(struct sockaddr_in *name, char *hostName, unsigned short 
 
 
 int main(int argc, char *argv[]){
-    int sockfd;                         /* Socket file descriptor of the sender */                
-    struct sockaddr_in serverName;
-    char hostName[hostNameLength];      /* Name of the host/receiver */
-    pthread_t t1, t2;
-
+    int sockfd;                             /* Socket file descriptor of the sender */ 
+    pthread_t t1, t2;                       /* Define pthread */
+    struct sockaddr_in serverName;          /* Server adress */
+    char hostName[hostNameLength];          /* Name of the host/receiver */
     socklen_t socklen = sizeof(struct sockaddr);    /* Length of the socket structure sockaddr */
+
 
     /*Check arguments*/
     if(argv[1] == NULL){
@@ -656,12 +655,10 @@ int main(int argc, char *argv[]){
         perror("Failed to create thread");
         exit(EXIT_FAILURE);
     } 
-
     if(pthread_create(&t2, NULL, recvthread, NULL) != 0){
         perror("Failed to create thread");
         exit(EXIT_FAILURE);
     }
-
     pthread_join(t1, NULL);
     pthread_join(t2, NULL);
     
@@ -669,7 +666,7 @@ int main(int argc, char *argv[]){
     /* Update client info */
     client.seqnum = 0;
 
-    /* Close the socket */
+    /* Teardown the socket */
     printf("\n\n=================================================================\n\n");
     printf("\n\nSTATE: START TEARDOWN\n\n");    
     if (sender_teardown(sockfd, (struct sockaddr*)&serverName, socklen) != 1){
@@ -677,6 +674,7 @@ int main(int argc, char *argv[]){
         exit(EXIT_FAILURE);
     }
 
+    /* Close the socket */
     if(close(sockfd) < 0){
         perror("Failed to close socket");
     }
