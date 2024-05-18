@@ -56,16 +56,12 @@ enum states {
     WAIT_SYNACK,
     ESTABLISHED,
     WAIT_OPEN,
-    WAIT_ACK,
     SEND_DATA,
-    PACKET_LOSS,
     WAIT_FINACK,
-    WAIT_TIME,
     LISTENING,
     WAIT_CLOSE,
     WAIT_OPEN_ACK,
     WAIT_CLOSE_ACK,
-    READ_DATA,
 };
 
 
