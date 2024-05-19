@@ -33,9 +33,9 @@ Description     : Header file for RT-protocol on-top of UDP
 #define hostNameLength 50           /* The lenght of host name*/
 #define windowSize 3                /* Sliding window size */
 #define MAXMSG 255                  /* Maximun data to be sent once*/
-#define packetToSend 10             /* The number of packet to send */
-#define LOSS_PROB 0                 /* Packet loss probability */
-#define CORR_PROB 0                 /* Packet corrution probability */
+#define packetToSend 100             /* The number of packet to send */
+#define LOSS_PROB 1e-2                 /* Packet loss probability */
+#define CORR_PROB 5e-2                 /* Packet corrution probability */
 #define TIMEOUT 5                   /* Timeout time (5s) */
 
 
