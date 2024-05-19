@@ -232,7 +232,6 @@ void *recvthread(void *arg){
             } else{
                 printf("Duplicate ACK!\n");                
                 printf("Packet info: Seq = %d\n\n", ACK_packet.seq);
-                continue;
             }
 
         /* Failed to read from socket */
@@ -679,6 +678,6 @@ int main(int argc, char *argv[]){
         perror("Failed to close socket");
     }
 
-    printf("\nSTATE: END OF PROGRAM\n");
+    printf("\n\nSTATE: END OF PROGRAM\n");
     return 0;
 }
