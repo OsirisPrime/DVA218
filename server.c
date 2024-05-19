@@ -168,15 +168,25 @@ void *recvthread(void *arg){
 
                 /* The DATA is corrupted */
                 if(verify_checksum(&DATA_packet) != 1){
-                    printf("Corrupt DATA packet! Seq = %d\n", DATA_packet.seq);
-                    printf("Packet checksum = %d\t", DATA_packet.checksum);
+                    printf("Corrupt DATA packet! Seq = %d\t", DATA_packet.seq);
+                    printf("Checksum = %d\t", DATA_packet.checksum);
                     DATA_packet.checksum = 0;
-                    printf("Calculated checksum = %d\n\n", checksum(&DATA_packet));
-                    continue;
+                    printf("Calc checksum = %d\n\n", checksum(&DATA_packet));
 
+                /* The DATA is out of order */
+                } else{
+                    printf("Out of order DATA packet!\tExpected seq = %d\tReceived seq = %d\n\n", ACK_packet.seq + 1, DATA_packet.seq);                      
                 }
 
-                printf("Out of order DATA packet!\tExpected seq = %d\tReceived seq = %d\n\n", ACK_packet.seq, DATA_packet.seq);
+                /* Send duplicate ACK to client */
+                if(maybe_sendto(server.sockfd, &ACK_packet, sizeof(ACK_packet), 0, server.DestName, server.socklen) != -1){
+                    printf("Duplicate ACK sent: Type = %d\tSeq = %d\n\n", ACK_packet.flags, ACK_packet.seq);
+                
+                /* Failed to send ACK */
+                } else{
+                    perror("Send ACK");
+                    exit(EXIT_FAILURE);
+                }  
                 continue;
             }
 
@@ -384,6 +394,7 @@ int verify_checksum(const rtp *packet) {
 ssize_t maybe_sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen){
     char *buffer = malloc(len);             /* Create temp buffer */
     memcpy(buffer, buf, len);               /* Copy message to temp buffer */
+    srand(time(NULL));                      /* Initialize random number generator */
 
     /* Packet not lost */
     if(rand() > LOSS_PROB * RAND_MAX){
