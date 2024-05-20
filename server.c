@@ -59,7 +59,6 @@ int receiver_connect(int sockfd, const struct sockaddr *client, socklen_t *sockl
         exit(EXIT_FAILURE);
     }
     
-    fcntl(sockfd, F_SETFL, O_NONBLOCK);                     /* Make socket non-blocking */
     server.state = WAIT_OPEN_ACK;                           /* Change state */
     alarm(TIMEOUT);                                         /* Start a timer */
 
@@ -95,24 +94,15 @@ int receiver_connect(int sockfd, const struct sockaddr *client, socklen_t *sockl
 
         /* Failed to read from socket */
         } else{
-
-            /* If state is established, break */
-            if(server.state == ESTABLISHED){
-                break;
-
-            } else {
-                continue;
-            }
-
             perror("Can't read from socket");
             exit(EXIT_FAILURE);
+
         }
     }
     
     /* Update server info */
     server.seqnum++;
     server.state = ESTABLISHED;
-    fcntl(server.sockfd, F_SETFL, 0);       /* Make socket blocking again */
     printf("Connection successfully established!\n\n\n");
     return 1;
 }
@@ -127,11 +117,12 @@ void *recvthread(void *arg){
 
 
     while(1){
-        alarm(25);              /* Start a timer */
+        alarm(20);              /* Start a timer */
 
         /* Read from socket */
         if(recvfrom(server.sockfd, &DATA_packet, sizeof(DATA_packet), 0, &from, &from_len) != -1){
             printf("New packet arrived!\n");
+            alarm(0);           /* Stop the timer */
 
             /* If the arrived DATA is valid */
             if(DATA_packet.flags == DATA && DATA_packet.seq == expSeqNum && verify_checksum(&DATA_packet) == 1){
@@ -264,8 +255,19 @@ void timeout_handler(int signum){
 
     /* TIMEOU: Doesn't receive new SYN or ACK in time frame */
     if(server.state == WAIT_OPEN_ACK){
-        printf("TIMEOUT: No new packet received. Assuming ACK was lost\n");
-        server.state = ESTABLISHED;             /* Change state to established */
+        re_packet = packetBuild(re_packet, SYNACK);
+
+        printf("TIMEOUT: No ACK packet received. Assuming SYNACK was lost, resend SYNACK\n");
+        /* Send SYNACK to client again */
+        if(maybe_sendto(server.sockfd, &re_packet, sizeof(re_packet), 0, server.DestName, server.socklen) != -1){
+            printf("SYNACK sent: Type = %d\tSeq = %d\tWindowsize = %d\n\n", re_packet.flags, re_packet.seq, re_packet.winSize);
+            alarm(TIMEOUT);     /* Start a timer again */
+
+        /* Failed to send SYNACK */
+        } else{
+            perror("Send SYNACK");
+            exit(EXIT_FAILURE);
+        }
 
 
     /* TIMEOUT: Doesn't receive any DATA in time frame */
