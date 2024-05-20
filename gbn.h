@@ -1,10 +1,11 @@
 /*
-==========================================================================
-File            : gbn.h
+===============================================================================
+File Name       : gbn.h
 Authurs         : Kim Svedberg & Zebastian Thorsén 
 Version         : 1.0
-Description     : Header file for RT-protocol on-top of UDP
-==========================================================================
+Description     : Header file for reliable GBN transfer protocol on-top of UDP.
+                  Contains all function definitions & packet info.
+===============================================================================
 */
 
 #ifndef gbn_h
@@ -34,7 +35,7 @@ Description     : Header file for RT-protocol on-top of UDP
 #define windowSize 3                /* Sliding window size */
 #define MAXMSG 255                  /* Maximun data to be sent once*/
 #define packetToSend 100             /* The number of packet to send */
-#define LOSS_PROB 1e-2                 /* Packet loss probability */
+#define LOSS_PROB 5e-2                 /* Packet loss probability */
 #define CORR_PROB 5e-2                 /* Packet corrution probability */
 #define TIMEOUT 5                   /* Timeout time (5s) */
 
@@ -88,8 +89,6 @@ typedef struct states_t{
 
 
 /*----- All function for the protocol -----*/
-void gbn_init();
-int get_randNum();
 int sender_connect(int sockfd, const struct sockaddr *serverName, socklen_t socklen);
 int receiver_connect(int sockfd, const struct sockaddr *client, socklen_t *socklen);
 
