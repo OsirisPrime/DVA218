@@ -1,15 +1,16 @@
 /*
-==========================================================================
-File            : client.c
+===============================================================================
+File Name       : client.c
 Authurs         : Kim Svedberg & Zebastian Thorsén 
 Version         : 1.0
-Description     : A reliable GBN transfer  protocol built on top of UDP
-==========================================================================
+Description     : A reliable GBN transfer protocol built on top of UDP. 
+                  Contains code for the sender/client side.
+===============================================================================
 */
 
 #include "gbn.h"
 
-/* Varr. for send & recv thread */
+/* Varibles for send & recv thread */
 int base;
 int nextSeq;
 int expSeqNum;
@@ -425,7 +426,7 @@ void timeout_handler(int signum){
             perror("Failed to close socket");
         }
 
-        printf("STATE: END OF PROGRAM\n");
+        printf("\nSTATE: END OF PROGRAM\n");
         exit(EXIT_SUCCESS);
     }
 
@@ -678,6 +679,6 @@ int main(int argc, char *argv[]){
         perror("Failed to close socket");
     }
 
-    printf("\n\nSTATE: END OF PROGRAM\n");
+    printf("\nSTATE: END OF PROGRAM\n");
     return 0;
 }
