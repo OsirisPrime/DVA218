@@ -1,10 +1,11 @@
 /*
-==========================================================================
-File            : server.c
+===============================================================================
+File Name       : server.c
 Authurs         : Kim Svedberg & Zebastian Thorsén 
 Version         : 1.0
-Description     : A reliable GBN transfer  protocol built on top of UDP
-==========================================================================
+Description     : A reliable GBN transfer protocol built on top of UDP.
+                  Contains code for the receiver/server side.
+===============================================================================
 */
 
 #include "gbn.h"
