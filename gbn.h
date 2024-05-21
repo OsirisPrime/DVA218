@@ -3,6 +3,7 @@
 File Name       : gbn.h
 Authurs         : Kim Svedberg & Zebastian Thorsén 
 Version         : 1.0
+Date            : 2024-05-21
 Description     : Header file for a reliable GBN transfer protocol on-top of UDP.
                   Contains all function definitions & packet info.
 ===============================================================================
