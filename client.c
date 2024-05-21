@@ -3,6 +3,7 @@
 File Name       : client.c
 Authurs         : Kim Svedberg & Zebastian Thorsén 
 Version         : 1.0
+Date            : 2024-05-21
 Description     : A reliable GBN transfer protocol built on top of UDP. 
                   Contains code for the sender/client side.
 ===============================================================================
